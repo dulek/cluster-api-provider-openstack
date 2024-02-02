@@ -183,8 +183,8 @@ func (r *OpenStackClusterReconciler) reconcileDelete(ctx context.Context, scope 
 		return reconcile.Result{}, fmt.Errorf("failed to delete security groups: %w", err)
 	}
 
-	// if NodeCIDR was not set, no network was created.
-	if openStackCluster.Spec.NodeCIDR != "" {
+	// if NodeSubnets was not set, no network was created.
+	if len(openStackCluster.Spec.NodeSubnets) == 0 {
 		if err = networkingService.DeleteRouter(openStackCluster, clusterName); err != nil {
 			handleUpdateOSCError(openStackCluster, fmt.Errorf("failed to delete router: %w", err))
 			return ctrl.Result{}, fmt.Errorf("failed to delete router: %w", err)
@@ -490,7 +490,7 @@ func reconcileNetworkComponents(scope scope.Scope, cluster *clusterv1.Cluster, o
 		return fmt.Errorf("failed to reconcile external network: %w", err)
 	}
 
-	if openStackCluster.Spec.NodeCIDR == "" {
+	if len(openStackCluster.Spec.NodeSubnets) == 0 {
 		scope.Logger().V(4).Info("No need to reconcile network, searching network and subnet instead")
 
 		netOpts := openStackCluster.Spec.Network.ToListOpt()
@@ -523,7 +523,7 @@ func reconcileNetworkComponents(scope scope.Scope, cluster *clusterv1.Cluster, o
 			return err
 		}
 		openStackCluster.Status.Network.Subnets = subnets
-	} else {
+	} else if len(openStackCluster.Spec.NodeSubnets) == 1 {
 		err := networkingService.ReconcileNetwork(openStackCluster, clusterName)
 		if err != nil {
 			handleUpdateOSCError(openStackCluster, fmt.Errorf("failed to reconcile network: %w", err))
@@ -539,6 +539,8 @@ func reconcileNetworkComponents(scope scope.Scope, cluster *clusterv1.Cluster, o
 			handleUpdateOSCError(openStackCluster, fmt.Errorf("failed to reconcile router: %w", err))
 			return fmt.Errorf("failed to reconcile router: %w", err)
 		}
+	} else {
+		return fmt.Errorf("failed to reconcile network: NodeSubnets only supports one element, %d provided", len(openStackCluster.Spec.NodeSubnets))
 	}
 
 	err = networkingService.ReconcileSecurityGroups(openStackCluster, clusterName)

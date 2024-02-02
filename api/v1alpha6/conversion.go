@@ -112,6 +112,10 @@ func restorev1alpha8ClusterStatus(previous *infrav1.OpenStackClusterStatus, dst 
 	}
 }
 
+func restorev1alpha8ClusterSpec(previous *infrav1.OpenStackClusterSpec, dst *infrav1.OpenStackClusterSpec) {
+	dst.NodeSubnets = previous.NodeSubnets
+}
+
 func restorev1alpha6ClusterSpec(previous *OpenStackClusterSpec, dst *OpenStackClusterSpec) {
 	for i := range previous.ExternalRouterIPs {
 		dstIP := &dst.ExternalRouterIPs[i]
@@ -125,6 +129,11 @@ func restorev1alpha6ClusterSpec(previous *OpenStackClusterSpec, dst *OpenStackCl
 		if previousIP.Subnet.UUID == "" && dstIP.Subnet.UUID == previousIP.Subnet.Filter.ID {
 			dstIP.Subnet.UUID = ""
 		}
+	}
+
+	// We only restore DNSNameservers when these were lossly converted when NodeCIDR is empty.
+	if len(previous.DNSNameservers) > 0 && len(dst.NodeCIDR) == 0 {
+		dst.DNSNameservers = previous.DNSNameservers
 	}
 
 	prevBastion := previous.Bastion
@@ -189,6 +198,12 @@ var v1alpha8OpenStackClusterRestorer = conversion.RestorerFor[*infrav1.OpenStack
 			return &c.Status
 		},
 		restorev1alpha8ClusterStatus,
+	),
+	"spec": conversion.HashedFieldRestorer(
+		func(c *infrav1.OpenStackCluster) *infrav1.OpenStackClusterSpec {
+			return &c.Spec
+		},
+		restorev1alpha8ClusterSpec,
 	),
 }
 
@@ -545,6 +560,11 @@ func Convert_v1alpha8_OpenStackClusterSpec_To_v1alpha6_OpenStackClusterSpec(in *
 		}
 	}
 
+	if len(in.NodeSubnets) > 0 {
+		out.NodeCIDR = in.NodeSubnets[0].CIDR
+		out.DNSNameservers = in.NodeSubnets[0].DNSNameservers
+	}
+
 	return nil
 }
 
@@ -567,6 +587,16 @@ func Convert_v1alpha6_OpenStackClusterSpec_To_v1alpha8_OpenStackClusterSpec(in *
 			return err
 		}
 		out.Subnets = []infrav1.SubnetFilter{subnet}
+	}
+
+	// DNSNameservers without NodeCIDR doesn't make sense, so we drop that.
+	if len(in.NodeCIDR) > 0 {
+		out.NodeSubnets = []infrav1.SubnetSpec{
+			{
+				CIDR:           in.NodeCIDR,
+				DNSNameservers: in.DNSNameservers,
+			},
+		}
 	}
 
 	return nil

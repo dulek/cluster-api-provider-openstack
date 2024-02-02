@@ -2801,15 +2801,6 @@ spec:
                           DisablePortSecurity disables the port security of the network created for the
                           Kubernetes cluster, which also disables SecurityGroups
                         type: boolean
-                      dnsNameservers:
-                        description: |-
-                          DNSNameservers is the list of nameservers for OpenStack Subnet being created.
-                          Set this value when you need create a new network/subnet while the access
-                          through DNS is required.
-                        items:
-                          type: string
-                        type: array
-                        x-kubernetes-list-type: set
                       externalNetwork:
                         description: ExternalNetwork is the OpenStack Network to be
                           used to get public internet to the VMs.
@@ -2931,12 +2922,24 @@ spec:
                           If leaved empty, the network will have the default MTU defined in Openstack network service.
                           To use this field, the Openstack installation requires the net-mtu neutron API extension.
                         type: integer
-                      nodeCidr:
+                      nodeCIDRs:
                         description: |-
-                          NodeCIDR is the OpenStack Subnet to be created. Cluster actuator will create a
-                          network, a subnet with NodeCIDR, and a router connected to this subnet.
+                          NodeCIDRs are describing OpenStack Subnets to be created. Cluster actuator
+                          will create a network, subnets with NodeCIDR, and a router connected to these subnets.
+                          Currently only one IPv4 subnet is supported.
                           If you leave this empty, no network will be created.
-                        type: string
+                        items:
+                          properties:
+                            cidr:
+                              type: string
+                            dnsNameservers:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - cidr
+                          type: object
+                        type: array
                       router:
                         description: |-
                           If NodeCIDR is set this option can be used to detect an existing router.
